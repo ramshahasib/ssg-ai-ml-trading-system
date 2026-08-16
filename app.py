@@ -483,7 +483,7 @@ except Exception as e:
 # AI/ML DECISION
 # ==========================================================
 
-if probability >= 0.75:
+if probability >= 0.65:
 
     decision = "ACCEPT"
 
