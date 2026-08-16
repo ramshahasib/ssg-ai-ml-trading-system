@@ -1,0 +1,474 @@
+import streamlit as st
+import pandas as pd
+import numpy as np
+import joblib
+import plotly.graph_objects as go
+
+
+# --------------------------------------------------
+# PAGE CONFIGURATION
+# --------------------------------------------------
+
+st.set_page_config(
+    page_title="AI/ML Stock Trading System",
+    page_icon="📈",
+    layout="wide"
+)
+
+
+# --------------------------------------------------
+# TITLE
+# --------------------------------------------------
+
+st.title("📈 AI/ML Real-Time Stock Screening & Trade Filtering")
+
+st.markdown(
+    """
+    **SSG Infotech Technical Assignment**
+
+    SMMA 20/120 + LTQ + Bid/Ask Market Depth + AI/ML
+    """
+)
+
+
+# --------------------------------------------------
+# LOAD DATA
+# --------------------------------------------------
+
+@st.cache_data
+def load_data():
+
+    df = pd.read_csv(
+        "market_data.csv"
+    )
+
+    df["timestamp"] = pd.to_datetime(
+        df["timestamp"]
+    )
+
+    return df
+
+
+@st.cache_resource
+def load_model():
+
+    return joblib.load(
+        "model.pkl"
+    )
+
+
+df = load_data()
+
+model = load_model()
+
+
+# --------------------------------------------------
+# SIDEBAR
+# --------------------------------------------------
+
+st.sidebar.header(
+    "Stock Selection"
+)
+
+symbols = df[
+    "symbol"
+].unique()
+
+selected_symbol = st.sidebar.selectbox(
+    "Select Stock",
+    symbols
+)
+
+
+stock = df[
+    df["symbol"] == selected_symbol
+].copy()
+
+
+# --------------------------------------------------
+# LATEST DATA
+# --------------------------------------------------
+
+latest = stock.iloc[-1]
+
+
+# --------------------------------------------------
+# TOP METRICS
+# --------------------------------------------------
+
+col1, col2, col3, col4 = st.columns(4)
+
+col1.metric(
+    "LTP",
+    f"₹{latest['close']:.2f}"
+)
+
+col2.metric(
+    "SMMA 20",
+    f"{latest['smma20']:.2f}"
+)
+
+col3.metric(
+    "SMMA 120",
+    f"{latest['smma120']:.2f}"
+)
+
+col4.metric(
+    "LTQ",
+    f"{latest['ltq']:,.0f}"
+)
+
+
+# --------------------------------------------------
+# MARKET DEPTH
+# --------------------------------------------------
+
+st.subheader(
+    "Market Depth"
+)
+
+col1, col2, col3, col4 = st.columns(4)
+
+col1.metric(
+    "Bid Price",
+    f"₹{latest['bid_price']:.2f}"
+)
+
+col2.metric(
+    "Bid Quantity",
+    f"{latest['bid_qty']:,.0f}"
+)
+
+col3.metric(
+    "Ask Price",
+    f"₹{latest['ask_price']:.2f}"
+)
+
+col4.metric(
+    "Ask Quantity",
+    f"{latest['ask_qty']:,.0f}"
+)
+
+
+# --------------------------------------------------
+# BID ASK IMBALANCE
+# --------------------------------------------------
+
+imbalance = (
+    latest["bid_qty"] -
+    latest["ask_qty"]
+) / (
+    latest["bid_qty"] +
+    latest["ask_qty"]
+)
+
+
+st.metric(
+    "Bid/Ask Imbalance",
+    f"{imbalance:.2%}"
+)
+
+
+# --------------------------------------------------
+# SMMA CHART
+# --------------------------------------------------
+
+st.subheader(
+    "Price & SMMA"
+)
+
+fig = go.Figure()
+
+fig.add_trace(
+    go.Scatter(
+        x=stock["timestamp"],
+        y=stock["close"],
+        name="LTP"
+    )
+)
+
+fig.add_trace(
+    go.Scatter(
+        x=stock["timestamp"],
+        y=stock["smma20"],
+        name="SMMA 20"
+    )
+)
+
+fig.add_trace(
+    go.Scatter(
+        x=stock["timestamp"],
+        y=stock["smma120"],
+        name="SMMA 120"
+    )
+)
+
+fig.update_layout(
+    height=500,
+    xaxis_title="Time",
+    yaxis_title="Price"
+)
+
+st.plotly_chart(
+    fig,
+    use_container_width=True
+)
+
+
+# --------------------------------------------------
+# LATEST SIGNAL
+# --------------------------------------------------
+
+latest_signal = latest["signal"]
+
+st.subheader(
+    "Trading Signal"
+)
+
+if latest_signal == "BUY":
+
+    st.success(
+        "🟢 BUY crossover detected"
+    )
+
+elif latest_signal == "SELL":
+
+    st.error(
+        "🔴 SELL crossover detected"
+    )
+
+else:
+
+    st.info(
+        "No crossover at current candle"
+    )
+
+
+# --------------------------------------------------
+# ML PREDICTION
+# --------------------------------------------------
+
+FEATURES = [
+
+    "ltq_change",
+
+    "ltq_acceleration",
+
+    "bid_qty_change",
+
+    "ask_qty_change",
+
+    "bid_ask_imbalance",
+
+    "bid_ask_spread",
+
+    "spread_pct",
+
+    "price_change",
+
+    "price_momentum_5",
+
+    "price_momentum_10",
+
+    "volume_change",
+
+    "relative_volume",
+
+    "smma_spread",
+
+    "smma_spread_change",
+
+    "price_vs_smma20"
+
+]
+
+
+latest_row = stock.iloc[-1]
+
+X = pd.DataFrame(
+    [latest_row[FEATURES]]
+)
+
+
+X = X.replace(
+    [np.inf, -np.inf],
+    np.nan
+).fillna(0)
+
+
+probability = model.predict_proba(
+    X
+)[0][1]
+
+
+# --------------------------------------------------
+# DECISION
+# --------------------------------------------------
+
+if probability >= 0.75:
+
+    decision = "ACCEPT"
+
+elif probability >= 0.50:
+
+    decision = "AVOID"
+
+else:
+
+    decision = "AVOID"
+
+
+st.subheader(
+    "AI/ML Decision"
+)
+
+col1, col2 = st.columns(2)
+
+col1.metric(
+    "ML Probability",
+    f"{probability:.2%}"
+)
+
+if decision == "ACCEPT":
+
+    col2.success(
+        f"✅ {decision}"
+    )
+
+else:
+
+    col2.warning(
+        f"⚠️ {decision}"
+    )
+
+
+# --------------------------------------------------
+# REASON
+# --------------------------------------------------
+
+reasons = []
+
+
+if latest_row["ltq_change"] > 0:
+
+    reasons.append(
+        "LTQ increasing"
+    )
+
+else:
+
+    reasons.append(
+        "LTQ weakening"
+    )
+
+
+if imbalance > 0.20:
+
+    reasons.append(
+        "Strong bid support"
+    )
+
+elif imbalance < -0.20:
+
+    reasons.append(
+        "Strong ask pressure"
+    )
+
+else:
+
+    reasons.append(
+        "Neutral Bid/Ask imbalance"
+    )
+
+
+if latest_row["smma_spread_change"] > 0:
+
+    reasons.append(
+        "SMMA spread strengthening"
+    )
+
+else:
+
+    reasons.append(
+        "SMMA spread weakening"
+    )
+
+
+st.subheader(
+    "Decision Reasons"
+)
+
+for reason in reasons:
+
+    st.write(
+        "• " + reason
+    )
+
+
+# --------------------------------------------------
+# PAPER TRADING
+# --------------------------------------------------
+
+st.subheader(
+    "Paper Trading"
+)
+
+if decision == "ACCEPT":
+
+    st.info(
+        f"""
+        Paper Trade Status: OPEN
+
+        Direction: {latest_signal}
+
+        Entry Price: ₹{latest['close']:.2f}
+
+        Probability: {probability:.2%}
+        """
+    )
+
+else:
+
+    st.warning(
+        "No paper trade opened — signal filtered by AI/ML."
+    )
+
+
+# --------------------------------------------------
+# RECENT DATA
+# --------------------------------------------------
+
+st.subheader(
+    "Recent Market Data"
+)
+
+display_columns = [
+
+    "timestamp",
+
+    "symbol",
+
+    "close",
+
+    "smma20",
+
+    "smma120",
+
+    "ltq",
+
+    "bid_qty",
+
+    "ask_qty",
+
+    "bid_ask_imbalance",
+
+    "signal"
+
+]
+
+st.dataframe(
+    stock[
+        display_columns
+    ].tail(20),
+    use_container_width=True
+)
