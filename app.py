@@ -1,3 +1,5 @@
+import time
+REFRESH_SECONDS = 10
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -689,3 +691,8 @@ st.dataframe(
     ].tail(20),
     use_container_width=True
 )
+time.sleep(
+    REFRESH_SECONDS
+)
+
+st.rerun()
