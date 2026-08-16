@@ -158,7 +158,37 @@ def close_paper_trade(
 
     return trade
 
+# ==========================================================
+# SAVE COMPLETED TRADE
+# ==========================================================
 
+def save_trade_to_csv(trade):
+
+    trade_df = pd.DataFrame([trade])
+
+    file_name = "trade_history.csv"
+
+    try:
+
+        existing_df = pd.read_csv(file_name)
+
+        updated_df = pd.concat(
+            [
+                existing_df,
+                trade_df
+            ],
+            ignore_index=True
+        )
+
+    except FileNotFoundError:
+
+        updated_df = trade_df
+
+
+    updated_df.to_csv(
+        file_name,
+        index=False
+    )
 # ==========================================================
 # SIDEBAR
 # ==========================================================
@@ -880,17 +910,22 @@ if trade is not None:
 
         closed_trade = close_paper_trade(
 
-            trade,
+    trade,
 
-            latest["close"],
+    latest["close"],
 
-            "Market conditions deteriorated"
-        )
+    "Market conditions deteriorated"
+)
 
 
-        st.session_state.trade_history.append(
-            closed_trade
-        )
+st.session_state.trade_history.append(
+    closed_trade
+)
+
+
+save_trade_to_csv(
+    closed_trade
+)
 
 
         st.session_state.active_trade = None
@@ -931,17 +966,22 @@ if trade is not None:
 
             closed_trade = close_paper_trade(
 
-                trade_to_close,
+    trade_to_close,
 
-                latest["close"],
+    latest["close"],
 
-                "Manual paper exit"
-            )
+    "Manual paper exit"
+)
 
 
-            st.session_state.trade_history.append(
-                closed_trade
-            )
+st.session_state.trade_history.append(
+    closed_trade
+)
+
+
+save_trade_to_csv(
+    closed_trade
+)
 
 
             st.session_state.active_trade = None
@@ -984,7 +1024,30 @@ else:
     st.info(
         "No completed paper trades yet."
     )
+# ==========================================================
+# SAVED TRADE HISTORY
+# ==========================================================
 
+st.subheader(
+    "Saved Trade History"
+)
+
+try:
+
+    saved_trades = pd.read_csv(
+        "trade_history.csv"
+    )
+
+    st.dataframe(
+        saved_trades,
+        use_container_width=True
+    )
+
+except FileNotFoundError:
+
+    st.info(
+        "No saved trades yet."
+    )
 
 # ==========================================================
 # PAPER TRADING PERFORMANCE
