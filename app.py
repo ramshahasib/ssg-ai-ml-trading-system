@@ -1,26 +1,13 @@
-import time
-REFRESH_SECONDS = 10
 import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
 import plotly.graph_objects as go
-# --------------------------------------------------
-# PAPER TRADING STATE
-# --------------------------------------------------
-
-if "active_trade" not in st.session_state:
-
-    st.session_state.active_trade = None
 
 
-if "trade_history" not in st.session_state:
-
-    st.session_state.trade_history = []
-
-# --------------------------------------------------
+# ==========================================================
 # PAGE CONFIGURATION
-# --------------------------------------------------
+# ==========================================================
 
 st.set_page_config(
     page_title="AI/ML Stock Trading System",
@@ -29,11 +16,24 @@ st.set_page_config(
 )
 
 
-# --------------------------------------------------
-# TITLE
-# --------------------------------------------------
+# ==========================================================
+# SESSION STATE
+# ==========================================================
 
-st.title("📈 AI/ML Real-Time Stock Screening & Trade Filtering")
+if "active_trade" not in st.session_state:
+    st.session_state.active_trade = None
+
+if "trade_history" not in st.session_state:
+    st.session_state.trade_history = []
+
+
+# ==========================================================
+# TITLE
+# ==========================================================
+
+st.title(
+    "📈 AI/ML Real-Time Stock Screening & Trade Filtering"
+)
 
 st.markdown(
     """
@@ -44,9 +44,9 @@ st.markdown(
 )
 
 
-# --------------------------------------------------
-# LOAD DATA
-# --------------------------------------------------
+# ==========================================================
+# LOAD MARKET DATA
+# ==========================================================
 
 @st.cache_data
 def load_data():
@@ -62,6 +62,10 @@ def load_data():
     return df
 
 
+# ==========================================================
+# LOAD ML MODEL
+# ==========================================================
+
 @st.cache_resource
 def load_model():
 
@@ -70,13 +74,23 @@ def load_model():
     )
 
 
-df = load_data()
+try:
 
-model = load_model()
+    df = load_data()
+    model = load_model()
 
-# --------------------------------------------------
+except Exception as e:
+
+    st.error(
+        f"Unable to load data/model: {e}"
+    )
+
+    st.stop()
+
+
+# ==========================================================
 # PAPER TRADE FUNCTION
-# --------------------------------------------------
+# ==========================================================
 
 def open_paper_trade(
     symbol,
@@ -92,9 +106,9 @@ def open_paper_trade(
 
         "side": side,
 
-        "entry_price": entry_price,
+        "entry_price": float(entry_price),
 
-        "entry_probability": probability,
+        "entry_probability": float(probability),
 
         "entry_reason": reason,
 
@@ -105,11 +119,12 @@ def open_paper_trade(
         "exit_reason": None,
 
         "pnl": None
-
     }
-# --------------------------------------------------
-# CLOSE PAPER TRADE
-# --------------------------------------------------
+
+
+# ==========================================================
+# CLOSE PAPER TRADE FUNCTION
+# ==========================================================
 
 def close_paper_trade(
     trade,
@@ -117,22 +132,26 @@ def close_paper_trade(
     exit_reason
 ):
 
-    trade["exit_price"] = exit_price
+    trade["exit_price"] = float(
+        exit_price
+    )
 
     trade["exit_reason"] = exit_reason
 
     if trade["side"] == "BUY":
 
         trade["pnl"] = (
-            exit_price -
-            trade["entry_price"]
+            float(exit_price)
+            -
+            float(trade["entry_price"])
         )
 
     elif trade["side"] == "SELL":
 
         trade["pnl"] = (
-            trade["entry_price"] -
-            exit_price
+            float(trade["entry_price"])
+            -
+            float(exit_price)
         )
 
     trade["status"] = "CLOSED"
@@ -140,10 +159,9 @@ def close_paper_trade(
     return trade
 
 
-
-# --------------------------------------------------
+# ==========================================================
 # SIDEBAR
-# --------------------------------------------------
+# ==========================================================
 
 st.sidebar.header(
     "Stock Selection"
@@ -151,7 +169,8 @@ st.sidebar.header(
 
 symbols = df[
     "symbol"
-].unique()
+].dropna().unique()
+
 
 selected_symbol = st.sidebar.selectbox(
     "Select Stock",
@@ -164,33 +183,50 @@ stock = df[
 ].copy()
 
 
-# --------------------------------------------------
+if stock.empty:
+
+    st.error(
+        "No data available for selected stock."
+    )
+
+    st.stop()
+
+
+# ==========================================================
 # LATEST DATA
-# --------------------------------------------------
+# ==========================================================
 
 latest = stock.iloc[-1]
 
 
-# --------------------------------------------------
+# ==========================================================
 # TOP METRICS
-# --------------------------------------------------
+# ==========================================================
+
+st.subheader(
+    "Current Market Data"
+)
 
 col1, col2, col3, col4 = st.columns(4)
+
 
 col1.metric(
     "LTP",
     f"₹{latest['close']:.2f}"
 )
 
+
 col2.metric(
     "SMMA 20",
     f"{latest['smma20']:.2f}"
 )
 
+
 col3.metric(
     "SMMA 120",
     f"{latest['smma120']:.2f}"
 )
+
 
 col4.metric(
     "LTQ",
@@ -198,9 +234,9 @@ col4.metric(
 )
 
 
-# --------------------------------------------------
+# ==========================================================
 # MARKET DEPTH
-# --------------------------------------------------
+# ==========================================================
 
 st.subheader(
     "Market Depth"
@@ -208,20 +244,24 @@ st.subheader(
 
 col1, col2, col3, col4 = st.columns(4)
 
+
 col1.metric(
     "Bid Price",
     f"₹{latest['bid_price']:.2f}"
 )
+
 
 col2.metric(
     "Bid Quantity",
     f"{latest['bid_qty']:,.0f}"
 )
 
+
 col3.metric(
     "Ask Price",
     f"₹{latest['ask_price']:.2f}"
 )
+
 
 col4.metric(
     "Ask Quantity",
@@ -229,17 +269,32 @@ col4.metric(
 )
 
 
-# --------------------------------------------------
-# BID ASK IMBALANCE
-# --------------------------------------------------
+# ==========================================================
+# BID / ASK IMBALANCE
+# ==========================================================
 
-imbalance = (
-    latest["bid_qty"] -
-    latest["ask_qty"]
-) / (
-    latest["bid_qty"] +
+bid_qty = float(
+    latest["bid_qty"]
+)
+
+ask_qty = float(
     latest["ask_qty"]
 )
+
+
+if (
+    bid_qty + ask_qty
+) != 0:
+
+    imbalance = (
+        bid_qty - ask_qty
+    ) / (
+        bid_qty + ask_qty
+    )
+
+else:
+
+    imbalance = 0
 
 
 st.metric(
@@ -248,15 +303,16 @@ st.metric(
 )
 
 
-# --------------------------------------------------
+# ==========================================================
 # SMMA CHART
-# --------------------------------------------------
+# ==========================================================
 
 st.subheader(
     "Price & SMMA"
 )
 
 fig = go.Figure()
+
 
 fig.add_trace(
     go.Scatter(
@@ -266,6 +322,7 @@ fig.add_trace(
     )
 )
 
+
 fig.add_trace(
     go.Scatter(
         x=stock["timestamp"],
@@ -273,6 +330,7 @@ fig.add_trace(
         name="SMMA 20"
     )
 )
+
 
 fig.add_trace(
     go.Scatter(
@@ -282,11 +340,13 @@ fig.add_trace(
     )
 )
 
+
 fig.update_layout(
     height=500,
     xaxis_title="Time",
     yaxis_title="Price"
 )
+
 
 st.plotly_chart(
     fig,
@@ -294,15 +354,19 @@ st.plotly_chart(
 )
 
 
-# --------------------------------------------------
-# LATEST SIGNAL
-# --------------------------------------------------
+# ==========================================================
+# SIGNAL
+# ==========================================================
 
-latest_signal = latest["signal"]
+latest_signal = str(
+    latest["signal"]
+)
+
 
 st.subheader(
     "Trading Signal"
 )
+
 
 if latest_signal == "BUY":
 
@@ -323,9 +387,9 @@ else:
     )
 
 
-# --------------------------------------------------
-# ML PREDICTION
-# --------------------------------------------------
+# ==========================================================
+# ML FEATURES
+# ==========================================================
 
 FEATURES = [
 
@@ -362,7 +426,29 @@ FEATURES = [
 ]
 
 
+# ==========================================================
+# ML PREDICTION
+# ==========================================================
+
 latest_row = stock.iloc[-1]
+
+
+missing_features = [
+    feature
+    for feature in FEATURES
+    if feature not in stock.columns
+]
+
+
+if missing_features:
+
+    st.error(
+        "Missing ML features: "
+        + ", ".join(missing_features)
+    )
+
+    st.stop()
+
 
 X = pd.DataFrame(
     [latest_row[FEATURES]]
@@ -372,25 +458,34 @@ X = pd.DataFrame(
 X = X.replace(
     [np.inf, -np.inf],
     np.nan
-).fillna(0)
+)
 
 
-probability = model.predict_proba(
-    X
-)[0][1]
+X = X.fillna(0)
 
 
-# --------------------------------------------------
-# DECISION
-# --------------------------------------------------
+try:
+
+    probability = model.predict_proba(
+        X
+    )[0][1]
+
+except Exception as e:
+
+    st.error(
+        f"ML prediction failed: {e}"
+    )
+
+    st.stop()
+
+
+# ==========================================================
+# AI/ML DECISION
+# ==========================================================
 
 if probability >= 0.75:
 
     decision = "ACCEPT"
-
-elif probability >= 0.50:
-
-    decision = "AVOID"
 
 else:
 
@@ -401,29 +496,32 @@ st.subheader(
     "AI/ML Decision"
 )
 
+
 col1, col2 = st.columns(2)
+
 
 col1.metric(
     "ML Probability",
     f"{probability:.2%}"
 )
 
+
 if decision == "ACCEPT":
 
     col2.success(
-        f"✅ {decision}"
+        "✅ ACCEPT"
     )
 
 else:
 
     col2.warning(
-        f"⚠️ {decision}"
+        "⚠️ AVOID"
     )
 
 
-# --------------------------------------------------
-# REASON
-# --------------------------------------------------
+# ==========================================================
+# DECISION REASONS
+# ==========================================================
 
 reasons = []
 
@@ -473,69 +571,74 @@ else:
     )
 
 
+trade_reason = "; ".join(
+    reasons
+)
+
+
 st.subheader(
     "Decision Reasons"
 )
+
 
 for reason in reasons:
 
     st.write(
         "• " + reason
     )
-    trade_reason = "; ".join(
-    reasons
-)
-# --------------------------------------------------
-# SMART DETERIORATION DETECTION
-# --------------------------------------------------
+
+
+# ==========================================================
+# DETERIORATION DETECTION
+# ==========================================================
 
 deterioration_reasons = []
 
-signal = latest_row["signal"]
+
+signal = latest_signal
 
 
-# ================================================
-# BUY TRADE
-# ================================================
+# ==========================================================
+# BUY DETERIORATION
+# ==========================================================
 
 if signal == "BUY":
 
-    # LTQ falling
     if latest_row["ltq_change"] < 0:
 
         deterioration_reasons.append(
             "LTQ is declining after BUY signal"
         )
 
-    # Bid support weakening
+
     if latest_row["bid_qty_change"] < -0.10:
 
         deterioration_reasons.append(
             "Bid support is weakening"
         )
 
-    # Ask pressure increasing
+
     if latest_row["ask_qty_change"] > 0.10:
 
         deterioration_reasons.append(
             "Ask pressure is increasing"
         )
 
-    # Negative imbalance
+
     if imbalance < -0.20:
 
         deterioration_reasons.append(
             "Bid/Ask imbalance turned negative"
         )
 
-    # SMMA weakening
+
     if latest_row["smma_spread_change"] < 0:
 
         deterioration_reasons.append(
             "SMMA spread is weakening"
         )
 
-    # Price falling
+
     if latest_row["price_change"] < 0:
 
         deterioration_reasons.append(
@@ -543,48 +646,47 @@ if signal == "BUY":
         )
 
 
-# ================================================
-# SELL TRADE
-# ================================================
+# ==========================================================
+# SELL DETERIORATION
+# ==========================================================
 
 elif signal == "SELL":
 
-    # LTQ falling can indicate weakening selling activity
     if latest_row["ltq_change"] < 0:
 
         deterioration_reasons.append(
             "LTQ is declining after SELL signal"
         )
 
-    # Bid pressure increasing
+
     if latest_row["bid_qty_change"] > 0.10:
 
         deterioration_reasons.append(
             "Bid pressure is increasing"
         )
 
-    # Ask support weakening
+
     if latest_row["ask_qty_change"] < -0.10:
 
         deterioration_reasons.append(
             "Ask-side support is weakening"
         )
 
-    # Positive imbalance
+
     if imbalance > 0.20:
 
         deterioration_reasons.append(
             "Bid/Ask imbalance turned positive"
         )
 
-    # SMMA weakening for SELL
+
     if latest_row["smma_spread_change"] > 0:
 
         deterioration_reasons.append(
             "SMMA spread is moving against SELL"
         )
 
-    # Price rising
+
     if latest_row["price_change"] > 0:
 
         deterioration_reasons.append(
@@ -592,15 +694,19 @@ elif signal == "SELL":
         )
 
 
-# ================================================
+# ==========================================================
 # MARKET STATUS
-# ================================================
+# ==========================================================
 
-if len(deterioration_reasons) >= 3:
+if len(
+    deterioration_reasons
+) >= 3:
 
     market_status = "DETERIORATING"
 
-elif len(deterioration_reasons) >= 1:
+elif len(
+    deterioration_reasons
+) >= 1:
 
     market_status = "WARNING"
 
@@ -609,9 +715,9 @@ else:
     market_status = "STABLE"
 
 
-# ================================================
-# DISPLAY
-# ================================================
+# ==========================================================
+# DISPLAY MARKET STATUS
+# ==========================================================
 
 st.subheader(
     "Market Condition"
@@ -628,6 +734,7 @@ if market_status == "DETERIORATING":
         "Multiple market conditions are moving "
         "against the current signal."
     )
+
 
     for reason in deterioration_reasons:
 
@@ -646,6 +753,7 @@ elif market_status == "WARNING":
         "Early signs of deterioration detected."
     )
 
+
     for reason in deterioration_reasons:
 
         st.write(
@@ -662,84 +770,318 @@ else:
     st.write(
         "Market conditions remain favorable."
     )
-# --------------------------------------------------
+
+
+# ==========================================================
 # PAPER TRADING
-# --------------------------------------------------
+# ==========================================================
 
 st.subheader(
     "Paper Trading"
 )
 
 
-if decision == "ACCEPT":
+# ==========================================================
+# OPEN NEW PAPER TRADE
+# ==========================================================
 
-    if market_status == "DETERIORATING":
+if (
+    decision == "ACCEPT"
+    and latest_signal in ["BUY", "SELL"]
+    and st.session_state.active_trade is None
+):
 
-        st.error(
-            "🚨 PAPER TRADE EXIT"
+    st.session_state.active_trade = (
+        open_paper_trade(
+
+            symbol=selected_symbol,
+
+            side=latest_signal,
+
+            entry_price=latest["close"],
+
+            probability=probability,
+
+            reason=trade_reason
+
         )
+    )
 
-        st.write(
-            f"Direction: {latest_signal}"
+    st.success(
+        "🟢 Paper trade opened"
+    )
+
+
+# ==========================================================
+# ACTIVE TRADE
+# ==========================================================
+
+trade = (
+    st.session_state.active_trade
+)
+
+
+if trade is not None:
+
+    st.write(
+        "### Active Paper Trade"
+    )
+
+
+    col1, col2, col3, col4 = st.columns(4)
+
+
+    col1.metric(
+        "Direction",
+        trade["side"]
+    )
+
+
+    col2.metric(
+        "Entry Price",
+        f"₹{trade['entry_price']:.2f}"
+    )
+
+
+    col3.metric(
+        "Current Price",
+        f"₹{latest['close']:.2f}"
+    )
+
+
+    if trade["side"] == "BUY":
+
+        current_pnl = (
+            latest["close"]
+            -
+            trade["entry_price"]
         )
-
-        st.write(
-            f"Entry Price: ₹{latest['close']:.2f}"
-        )
-
-        st.write(
-            "Reason: Market conditions deteriorated."
-        )
-
-        st.write(
-            "**Deterioration factors:**"
-        )
-
-        for reason in deterioration_reasons:
-
-            st.write(
-                "• " + reason
-            )
 
     else:
 
-        st.success(
-            "🟢 PAPER TRADE OPEN"
+        current_pnl = (
+            trade["entry_price"]
+            -
+            latest["close"]
         )
 
-        st.write(
-            f"Direction: {latest_signal}"
+
+    col4.metric(
+        "Current P/L",
+        f"₹{current_pnl:.2f}"
+    )
+
+
+    # ======================================================
+    # DETERIORATING → AUTOMATIC PAPER EXIT
+    # ======================================================
+
+    if market_status == "DETERIORATING":
+
+        closed_trade = close_paper_trade(
+
+            trade,
+
+            latest["close"],
+
+            "Market conditions deteriorated"
         )
 
-        st.write(
-            f"Entry Price: ₹{latest['close']:.2f}"
+
+        st.session_state.trade_history.append(
+            closed_trade
         )
 
-        st.write(
-            f"AI Probability: {probability:.2%}"
+
+        st.session_state.active_trade = None
+
+
+        st.error(
+            "🔴 Paper trade automatically closed "
+            "because market conditions deteriorated."
         )
 
-        st.write(
-            "Status: Monitoring"
+
+    else:
+
+        st.info(
+            "Paper trade is currently being monitored."
         )
+
+
+    # ======================================================
+    # STEP 43 — MANUAL CLOSE BUTTON
+    # ======================================================
+
+    if st.session_state.active_trade is not None:
+
+        st.write(
+            "### Manual Trade Control"
+        )
+
+
+        if st.button(
+            "🔴 Close Paper Trade"
+        ):
+
+            trade_to_close = (
+                st.session_state.active_trade
+            )
+
+
+            closed_trade = close_paper_trade(
+
+                trade_to_close,
+
+                latest["close"],
+
+                "Manual paper exit"
+            )
+
+
+            st.session_state.trade_history.append(
+                closed_trade
+            )
+
+
+            st.session_state.active_trade = None
+
+
+            st.success(
+                "✅ Paper trade closed successfully."
+            )
+
+
+            st.rerun()
+
+
+# ==========================================================
+# PAPER TRADE HISTORY
+# ==========================================================
+
+st.subheader(
+    "Paper Trade History"
+)
+
+
+if len(
+    st.session_state.trade_history
+) > 0:
+
+    history_df = pd.DataFrame(
+        st.session_state.trade_history
+    )
+
+
+    st.dataframe(
+        history_df,
+        use_container_width=True
+    )
 
 
 else:
 
-    st.warning(
-        "No paper trade opened."
+    st.info(
+        "No completed paper trades yet."
     )
 
-    st.write(
-        "The AI/ML filter rejected this signal."
+
+# ==========================================================
+# PAPER TRADING PERFORMANCE
+# ==========================================================
+
+if len(
+    st.session_state.trade_history
+) > 0:
+
+    history_df = pd.DataFrame(
+        st.session_state.trade_history
     )
-# --------------------------------------------------
-# RECENT DATA
-# --------------------------------------------------
+
+
+    total_trades = len(
+        history_df
+    )
+
+
+    winning_trades = (
+        history_df["pnl"] > 0
+    ).sum()
+
+
+    losing_trades = (
+        history_df["pnl"] <= 0
+    ).sum()
+
+
+    total_pnl = (
+        history_df["pnl"].sum()
+    )
+
+
+    if total_trades > 0:
+
+        win_rate = (
+            winning_trades
+            /
+            total_trades
+        ) * 100
+
+    else:
+
+        win_rate = 0
+
+
+    # ======================================================
+    # PERFORMANCE METRICS
+    # ======================================================
+
+    st.subheader(
+        "Paper Trading Performance"
+    )
+
+
+    col1, col2, col3, col4 = st.columns(4)
+
+
+    col1.metric(
+        "Total Trades",
+        total_trades
+    )
+
+
+    col2.metric(
+        "Winning Trades",
+        winning_trades
+    )
+
+
+    col3.metric(
+        "Losing Trades",
+        losing_trades
+    )
+
+
+    col4.metric(
+        "Win Rate",
+        f"{win_rate:.2f}%"
+    )
+
+
+    st.metric(
+        "Total Paper P/L",
+        f"₹{total_pnl:.2f}"
+    )
+
+
+# ==========================================================
+# RECENT MARKET DATA
+# ==========================================================
 
 st.subheader(
     "Recent Market Data"
 )
+
 
 display_columns = [
 
@@ -765,14 +1107,57 @@ display_columns = [
 
 ]
 
+
+available_display_columns = [
+
+    column
+
+    for column in display_columns
+
+    if column in stock.columns
+]
+
+
 st.dataframe(
+
     stock[
-        display_columns
+        available_display_columns
     ].tail(20),
+
     use_container_width=True
 )
-time.sleep(
-    REFRESH_SECONDS
+
+
+# ==========================================================
+# SYSTEM INFORMATION
+# ==========================================================
+
+st.subheader(
+    "System Information"
 )
 
-st.rerun()
+
+col1, col2, col3 = st.columns(3)
+
+
+col1.metric(
+    "Selected Stock",
+    selected_symbol
+)
+
+
+col2.metric(
+    "Current Signal",
+    latest_signal
+)
+
+
+col3.metric(
+    "AI Decision",
+    decision
+)
+
+
+st.caption(
+    "Paper trading only. No real-money orders are placed."
+)
