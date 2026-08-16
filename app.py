@@ -5,7 +5,18 @@ import pandas as pd
 import numpy as np
 import joblib
 import plotly.graph_objects as go
+# --------------------------------------------------
+# PAPER TRADING STATE
+# --------------------------------------------------
 
+if "active_trade" not in st.session_state:
+
+    st.session_state.active_trade = None
+
+
+if "trade_history" not in st.session_state:
+
+    st.session_state.trade_history = []
 
 # --------------------------------------------------
 # PAGE CONFIGURATION
@@ -62,6 +73,72 @@ def load_model():
 df = load_data()
 
 model = load_model()
+
+# --------------------------------------------------
+# PAPER TRADE FUNCTION
+# --------------------------------------------------
+
+def open_paper_trade(
+    symbol,
+    side,
+    entry_price,
+    probability,
+    reason
+):
+
+    return {
+
+        "symbol": symbol,
+
+        "side": side,
+
+        "entry_price": entry_price,
+
+        "entry_probability": probability,
+
+        "entry_reason": reason,
+
+        "status": "OPEN",
+
+        "exit_price": None,
+
+        "exit_reason": None,
+
+        "pnl": None
+
+    }
+# --------------------------------------------------
+# CLOSE PAPER TRADE
+# --------------------------------------------------
+
+def close_paper_trade(
+    trade,
+    exit_price,
+    exit_reason
+):
+
+    trade["exit_price"] = exit_price
+
+    trade["exit_reason"] = exit_reason
+
+    if trade["side"] == "BUY":
+
+        trade["pnl"] = (
+            exit_price -
+            trade["entry_price"]
+        )
+
+    elif trade["side"] == "SELL":
+
+        trade["pnl"] = (
+            trade["entry_price"] -
+            exit_price
+        )
+
+    trade["status"] = "CLOSED"
+
+    return trade
+
 
 
 # --------------------------------------------------
@@ -405,6 +482,9 @@ for reason in reasons:
     st.write(
         "• " + reason
     )
+    trade_reason = "; ".join(
+    reasons
+)
 # --------------------------------------------------
 # SMART DETERIORATION DETECTION
 # --------------------------------------------------
