@@ -46,7 +46,7 @@ st.markdown(
 
 # ==========================================================
 # LOAD MARKET DATA
-# =========================================================
+# ==========================================================
 
 @st.cache_data
 def load_data():
@@ -158,19 +158,24 @@ def close_paper_trade(
 
     return trade
 
+
 # ==========================================================
 # SAVE COMPLETED TRADE
 # ==========================================================
 
 def save_trade_to_csv(trade):
 
-    trade_df = pd.DataFrame([trade])
+    trade_df = pd.DataFrame(
+        [trade]
+    )
 
     file_name = "trade_history.csv"
 
     try:
 
-        existing_df = pd.read_csv(file_name)
+        existing_df = pd.read_csv(
+            file_name
+        )
 
         updated_df = pd.concat(
             [
@@ -184,11 +189,12 @@ def save_trade_to_csv(trade):
 
         updated_df = trade_df
 
-
     updated_df.to_csv(
         file_name,
         index=False
     )
+
+
 # ==========================================================
 # SIDEBAR
 # ==========================================================
@@ -312,9 +318,7 @@ ask_qty = float(
 )
 
 
-if (
-    bid_qty + ask_qty
-) != 0:
+if (bid_qty + ask_qty) != 0:
 
     imbalance = (
         bid_qty - ask_qty
@@ -424,33 +428,19 @@ else:
 FEATURES = [
 
     "ltq_change",
-
     "ltq_acceleration",
-
     "bid_qty_change",
-
     "ask_qty_change",
-
     "bid_ask_imbalance",
-
     "bid_ask_spread",
-
     "spread_pct",
-
     "price_change",
-
     "price_momentum_5",
-
     "price_momentum_10",
-
     "volume_change",
-
     "relative_volume",
-
     "smma_spread",
-
     "smma_spread_change",
-
     "price_vs_smma20"
 
 ]
@@ -464,9 +454,13 @@ latest_row = stock.iloc[-1]
 
 
 missing_features = [
+
     feature
+
     for feature in FEATURES
+
     if feature not in stock.columns
+
 ]
 
 
@@ -512,6 +506,10 @@ except Exception as e:
 # ==========================================================
 # AI/ML DECISION
 # ==========================================================
+
+# 0.65 is currently being used for testing.
+# We will optimize the final threshold later using
+# Day-2 validation data.
 
 if probability >= 0.65:
 
@@ -720,7 +718,7 @@ elif signal == "SELL":
     if latest_row["price_change"] > 0:
 
         deterioration_reasons.append(
-            "Price is moving against SELL position"
+            "Price is moving against SELL"
         )
 
 
@@ -728,15 +726,11 @@ elif signal == "SELL":
 # MARKET STATUS
 # ==========================================================
 
-if len(
-    deterioration_reasons
-) >= 3:
+if len(deterioration_reasons) >= 3:
 
     market_status = "DETERIORATING"
 
-elif len(
-    deterioration_reasons
-) >= 1:
+elif len(deterioration_reasons) >= 1:
 
     market_status = "WARNING"
 
@@ -833,7 +827,6 @@ if (
             probability=probability,
 
             reason=trade_reason
-
         )
     )
 
@@ -846,9 +839,7 @@ if (
 # ACTIVE TRADE
 # ==========================================================
 
-trade = (
-    st.session_state.active_trade
-)
+trade = st.session_state.active_trade
 
 
 if trade is not None:
@@ -910,22 +901,22 @@ if trade is not None:
 
         closed_trade = close_paper_trade(
 
-    trade,
+            trade,
 
-    latest["close"],
+            latest["close"],
 
-    "Market conditions deteriorated"
-)
-
-
-st.session_state.trade_history.append(
-    closed_trade
-)
+            "Market conditions deteriorated"
+        )
 
 
-save_trade_to_csv(
-    closed_trade
-)
+        st.session_state.trade_history.append(
+            closed_trade
+        )
+
+
+        save_trade_to_csv(
+            closed_trade
+        )
 
 
         st.session_state.active_trade = None
@@ -966,22 +957,22 @@ save_trade_to_csv(
 
             closed_trade = close_paper_trade(
 
-    trade_to_close,
+                trade_to_close,
 
-    latest["close"],
+                latest["close"],
 
-    "Manual paper exit"
-)
-
-
-st.session_state.trade_history.append(
-    closed_trade
-)
+                "Manual paper exit"
+            )
 
 
-save_trade_to_csv(
-    closed_trade
-)
+            st.session_state.trade_history.append(
+                closed_trade
+            )
+
+
+            save_trade_to_csv(
+                closed_trade
+            )
 
 
             st.session_state.active_trade = None
@@ -1004,9 +995,7 @@ st.subheader(
 )
 
 
-if len(
-    st.session_state.trade_history
-) > 0:
+if len(st.session_state.trade_history) > 0:
 
     history_df = pd.DataFrame(
         st.session_state.trade_history
@@ -1018,12 +1007,13 @@ if len(
         use_container_width=True
     )
 
-
 else:
 
     st.info(
         "No completed paper trades yet."
     )
+
+
 # ==========================================================
 # SAVED TRADE HISTORY
 # ==========================================================
@@ -1032,11 +1022,13 @@ st.subheader(
     "Saved Trade History"
 )
 
+
 try:
 
     saved_trades = pd.read_csv(
         "trade_history.csv"
     )
+
 
     st.dataframe(
         saved_trades,
@@ -1049,13 +1041,12 @@ except FileNotFoundError:
         "No saved trades yet."
     )
 
+
 # ==========================================================
 # PAPER TRADING PERFORMANCE
 # ==========================================================
 
-if len(
-    st.session_state.trade_history
-) > 0:
+if len(st.session_state.trade_history) > 0:
 
     history_df = pd.DataFrame(
         st.session_state.trade_history
@@ -1149,23 +1140,14 @@ st.subheader(
 display_columns = [
 
     "timestamp",
-
     "symbol",
-
     "close",
-
     "smma20",
-
     "smma120",
-
     "ltq",
-
     "bid_qty",
-
     "ask_qty",
-
     "bid_ask_imbalance",
-
     "signal"
 
 ]
@@ -1178,6 +1160,7 @@ available_display_columns = [
     for column in display_columns
 
     if column in stock.columns
+
 ]
 
 
