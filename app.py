@@ -403,7 +403,111 @@ for reason in reasons:
     st.write(
         "• " + reason
     )
+# --------------------------------------------------
+# DETERIORATION DETECTION
+# --------------------------------------------------
 
+deterioration_reasons = []
+
+# 1. LTQ deterioration
+if latest_row["ltq_change"] < 0:
+    deterioration_reasons.append(
+        "LTQ is decreasing"
+    )
+
+# 2. Bid support deterioration
+if latest_row["bid_qty_change"] < -0.10:
+    deterioration_reasons.append(
+        "Bid quantity has decreased significantly"
+    )
+
+# 3. Increasing ask pressure
+if latest_row["ask_qty_change"] > 0.10:
+    deterioration_reasons.append(
+        "Ask quantity is increasing"
+    )
+
+# 4. Negative order-book imbalance
+if imbalance < -0.20:
+    deterioration_reasons.append(
+        "Bid/Ask imbalance is negative"
+    )
+
+# 5. SMMA spread deterioration
+if latest_row["smma_spread_change"] < 0:
+    deterioration_reasons.append(
+        "SMMA spread is weakening"
+    )
+
+
+# --------------------------------------------------
+# DETERMINE MARKET STATUS
+# --------------------------------------------------
+
+if len(deterioration_reasons) >= 2:
+
+    market_status = "DETERIORATING"
+
+elif len(deterioration_reasons) == 1:
+
+    market_status = "WARNING"
+
+else:
+
+    market_status = "STABLE"
+
+
+# --------------------------------------------------
+# DISPLAY STATUS
+# --------------------------------------------------
+
+st.subheader(
+    "Market Condition"
+)
+
+if market_status == "DETERIORATING":
+
+    st.error(
+        "🔴 DETERIORATING"
+    )
+
+    st.write(
+        "Market conditions are becoming unfavorable."
+    )
+
+    st.write(
+        "**Reasons:**"
+    )
+
+    for reason in deterioration_reasons:
+
+        st.write(
+            "• " + reason
+        )
+
+
+elif market_status == "WARNING":
+
+    st.warning(
+        "🟡 WARNING"
+    )
+
+    for reason in deterioration_reasons:
+
+        st.write(
+            "• " + reason
+        )
+
+
+else:
+
+    st.success(
+        "🟢 STABLE"
+    )
+
+    st.write(
+        "No significant deterioration detected."
+    )
 
 # --------------------------------------------------
 # PAPER TRADING
