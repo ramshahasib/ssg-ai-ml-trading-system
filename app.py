@@ -404,51 +404,121 @@ for reason in reasons:
         "• " + reason
     )
 # --------------------------------------------------
-# DETERIORATION DETECTION
+# SMART DETERIORATION DETECTION
 # --------------------------------------------------
 
 deterioration_reasons = []
 
-# 1. LTQ deterioration
-if latest_row["ltq_change"] < 0:
-    deterioration_reasons.append(
-        "LTQ is decreasing"
-    )
-
-# 2. Bid support deterioration
-if latest_row["bid_qty_change"] < -0.10:
-    deterioration_reasons.append(
-        "Bid quantity has decreased significantly"
-    )
-
-# 3. Increasing ask pressure
-if latest_row["ask_qty_change"] > 0.10:
-    deterioration_reasons.append(
-        "Ask quantity is increasing"
-    )
-
-# 4. Negative order-book imbalance
-if imbalance < -0.20:
-    deterioration_reasons.append(
-        "Bid/Ask imbalance is negative"
-    )
-
-# 5. SMMA spread deterioration
-if latest_row["smma_spread_change"] < 0:
-    deterioration_reasons.append(
-        "SMMA spread is weakening"
-    )
+signal = latest_row["signal"]
 
 
-# --------------------------------------------------
-# DETERMINE MARKET STATUS
-# --------------------------------------------------
+# ================================================
+# BUY TRADE
+# ================================================
 
-if len(deterioration_reasons) >= 2:
+if signal == "BUY":
+
+    # LTQ falling
+    if latest_row["ltq_change"] < 0:
+
+        deterioration_reasons.append(
+            "LTQ is declining after BUY signal"
+        )
+
+    # Bid support weakening
+    if latest_row["bid_qty_change"] < -0.10:
+
+        deterioration_reasons.append(
+            "Bid support is weakening"
+        )
+
+    # Ask pressure increasing
+    if latest_row["ask_qty_change"] > 0.10:
+
+        deterioration_reasons.append(
+            "Ask pressure is increasing"
+        )
+
+    # Negative imbalance
+    if imbalance < -0.20:
+
+        deterioration_reasons.append(
+            "Bid/Ask imbalance turned negative"
+        )
+
+    # SMMA weakening
+    if latest_row["smma_spread_change"] < 0:
+
+        deterioration_reasons.append(
+            "SMMA spread is weakening"
+        )
+
+    # Price falling
+    if latest_row["price_change"] < 0:
+
+        deterioration_reasons.append(
+            "Price is moving against BUY position"
+        )
+
+
+# ================================================
+# SELL TRADE
+# ================================================
+
+elif signal == "SELL":
+
+    # LTQ falling can indicate weakening selling activity
+    if latest_row["ltq_change"] < 0:
+
+        deterioration_reasons.append(
+            "LTQ is declining after SELL signal"
+        )
+
+    # Bid pressure increasing
+    if latest_row["bid_qty_change"] > 0.10:
+
+        deterioration_reasons.append(
+            "Bid pressure is increasing"
+        )
+
+    # Ask support weakening
+    if latest_row["ask_qty_change"] < -0.10:
+
+        deterioration_reasons.append(
+            "Ask-side support is weakening"
+        )
+
+    # Positive imbalance
+    if imbalance > 0.20:
+
+        deterioration_reasons.append(
+            "Bid/Ask imbalance turned positive"
+        )
+
+    # SMMA weakening for SELL
+    if latest_row["smma_spread_change"] > 0:
+
+        deterioration_reasons.append(
+            "SMMA spread is moving against SELL"
+        )
+
+    # Price rising
+    if latest_row["price_change"] > 0:
+
+        deterioration_reasons.append(
+            "Price is moving against SELL position"
+        )
+
+
+# ================================================
+# MARKET STATUS
+# ================================================
+
+if len(deterioration_reasons) >= 3:
 
     market_status = "DETERIORATING"
 
-elif len(deterioration_reasons) == 1:
+elif len(deterioration_reasons) >= 1:
 
     market_status = "WARNING"
 
@@ -457,13 +527,14 @@ else:
     market_status = "STABLE"
 
 
-# --------------------------------------------------
-# DISPLAY STATUS
-# --------------------------------------------------
+# ================================================
+# DISPLAY
+# ================================================
 
 st.subheader(
     "Market Condition"
 )
+
 
 if market_status == "DETERIORATING":
 
@@ -472,11 +543,8 @@ if market_status == "DETERIORATING":
     )
 
     st.write(
-        "Market conditions are becoming unfavorable."
-    )
-
-    st.write(
-        "**Reasons:**"
+        "Multiple market conditions are moving "
+        "against the current signal."
     )
 
     for reason in deterioration_reasons:
@@ -490,6 +558,10 @@ elif market_status == "WARNING":
 
     st.warning(
         "🟡 WARNING"
+    )
+
+    st.write(
+        "Early signs of deterioration detected."
     )
 
     for reason in deterioration_reasons:
@@ -506,9 +578,8 @@ else:
     )
 
     st.write(
-        "No significant deterioration detected."
+        "Market conditions remain favorable."
     )
-
 # --------------------------------------------------
 # PAPER TRADING
 # --------------------------------------------------
@@ -517,27 +588,69 @@ st.subheader(
     "Paper Trading"
 )
 
+
 if decision == "ACCEPT":
 
-    st.info(
-        f"""
-        Paper Trade Status: OPEN
+    if market_status == "DETERIORATING":
 
-        Direction: {latest_signal}
+        st.error(
+            "🚨 PAPER TRADE EXIT"
+        )
 
-        Entry Price: ₹{latest['close']:.2f}
+        st.write(
+            f"Direction: {latest_signal}"
+        )
 
-        Probability: {probability:.2%}
-        """
-    )
+        st.write(
+            f"Entry Price: ₹{latest['close']:.2f}"
+        )
+
+        st.write(
+            "Reason: Market conditions deteriorated."
+        )
+
+        st.write(
+            "**Deterioration factors:**"
+        )
+
+        for reason in deterioration_reasons:
+
+            st.write(
+                "• " + reason
+            )
+
+    else:
+
+        st.success(
+            "🟢 PAPER TRADE OPEN"
+        )
+
+        st.write(
+            f"Direction: {latest_signal}"
+        )
+
+        st.write(
+            f"Entry Price: ₹{latest['close']:.2f}"
+        )
+
+        st.write(
+            f"AI Probability: {probability:.2%}"
+        )
+
+        st.write(
+            "Status: Monitoring"
+        )
+
 
 else:
 
     st.warning(
-        "No paper trade opened — signal filtered by AI/ML."
+        "No paper trade opened."
     )
 
-
+    st.write(
+        "The AI/ML filter rejected this signal."
+    )
 # --------------------------------------------------
 # RECENT DATA
 # --------------------------------------------------
